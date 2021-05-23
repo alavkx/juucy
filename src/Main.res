@@ -1,7 +1,5 @@
 open Belt
 
-Js.log("Hello, World!")
-
 let input = `
   state enabled {
     toggle => disabled
@@ -15,28 +13,31 @@ type bracket = Open | Close
 type keyword = State | Enabled | Arrow | Initial
 type token =
   Word(string) | Number(string) | Curly(bracket) | Keyword(keyword) | Unid(string) | Space
-let rec lexer = (chars, tokens: array<token>) => {
-  let tail = Array.sliceToEnd(chars, 1)
-  switch chars[0] {
+let rec scan = (source, tokens: array<token>) => {
+  let tail = Js.Array.sliceFrom(1, source)
+  switch source[0] {
   | None => tokens
   | Some("") => tokens
-  | Some("{") => lexer(tail, Array.concat(tokens, [Curly(Open)]))
-  | Some("}") => lexer(tail, Array.concat(tokens, [Curly(Close)]))
-  | Some("\n") => lexer(tail, Array.concat(tokens, [Space]))
-  | Some(" ") => lexer(tail, Array.concat(tokens, [Space]))
-  | Some(char) => lexer(tail, Array.concat(tokens, [Unid(char)]))
+  | Some("{") => scan(tail, Array.concat(tokens, [Curly(Open)]))
+  | Some("}") => scan(tail, Array.concat(tokens, [Curly(Close)]))
+  | Some("\n") => scan(tail, Array.concat(tokens, [Space]))
+  | Some(" ") => scan(tail, Array.concat(tokens, [Space]))
+  | Some(char) => scan(tail, Array.concat(tokens, [Unid(char)]))
   }
 }
-let rec parser = (tokens: array<token>) => {
-  let head = Array.split(tokens, Space)
-  let tail = Array.sliceToEnd(tokens, Array.length(head))
-  switch head {
-  | None => tsb
-  | Some(Space) => parser(tail)
-  | Some(Unid("state")) => Keyword(State)
-  | Some(Unid("enabled")) => Keyword(Enabled)
-  | Some(Unid("initial")) => Keyword(Initial)
-  | Some(Unid("=>")) => Keyword(Arrow)
-  | Some(Unid(sumn)) => Word(word)
-  }
-}
+// let rec parse = (tokens: array<token>) => {
+//   let firstSpaceIndex = Array.getIndexBy(tokens, x => x === Space)
+//   let head = Array.slice(0, firstSliceIndex)
+//   let tail = Array.sliceToEnd(tokens, Array.length(head))
+//   switch head {
+//   | None => tsb
+//   | Some(Space) => parse(tail)
+//   | Some(Unid("state")) => Keyword(State)
+//   | Some(Unid("enabled")) => Keyword(Enabled)
+//   | Some(Unid("initial")) => Keyword(Initial)
+//   | Some(Unid("=>")) => Keyword(Arrow)
+//   | Some(Unid(sumn)) => Word(word)
+//   }
+// }
+let output = Js.String.split("", input)->scan([])
+Js.log(output)

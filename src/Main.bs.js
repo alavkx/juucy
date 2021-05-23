@@ -3,52 +3,55 @@
 
 var Belt_Array = require("rescript/lib/js/belt_Array.js");
 
-console.log("Hello, World!");
+var input = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
 
-function lexer(_chars, _tokens) {
+function scan(_source, _tokens) {
   while(true) {
     var tokens = _tokens;
-    var chars = _chars;
-    var tail = Belt_Array.sliceToEnd(chars, 1);
-    var $$char = Belt_Array.get(chars, 0);
+    var source = _source;
+    var tail = source.slice(1);
+    var $$char = Belt_Array.get(source, 0);
     if ($$char === undefined) {
       return tokens;
     }
     switch ($$char) {
       case "" :
           return tokens;
+      case "\n" :
+      case " " :
+          _tokens = Belt_Array.concat(tokens, [/* Space */0]);
+          _source = tail;
+          continue ;
       case "{" :
           _tokens = Belt_Array.concat(tokens, [{
                   TAG: /* Curly */2,
                   _0: /* Open */0
                 }]);
-          _chars = tail;
+          _source = tail;
           continue ;
       case "}" :
           _tokens = Belt_Array.concat(tokens, [{
                   TAG: /* Curly */2,
                   _0: /* Close */1
                 }]);
-          _chars = tail;
+          _source = tail;
           continue ;
       default:
         _tokens = Belt_Array.concat(tokens, [{
                 TAG: /* Unid */4,
                 _0: $$char
               }]);
-        _chars = tail;
+        _source = tail;
         continue ;
     }
   };
 }
 
-function parser(param) {
-  
-}
+var output = scan(input.split(""), []);
 
-var machine = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
+console.log(output);
 
-exports.machine = machine;
-exports.lexer = lexer;
-exports.parser = parser;
-/*  Not a pure module */
+exports.input = input;
+exports.scan = scan;
+exports.output = output;
+/* output Not a pure module */
