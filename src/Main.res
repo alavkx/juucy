@@ -31,7 +31,6 @@ module Token = {
     | "|"
     | "+"
     | "-"
-    | "_"
     | "("
     | ")"
     | "*"
@@ -71,22 +70,21 @@ module PositionToken = {
 }
 module Cursor = {
   type t = {
-    source: array<string>,
+    source: string,
     tokens: array<PositionToken.t>,
     index: int,
+    wordOffset: int,
     line: int,
     column: int,
-    word: option<string>,
   }
   let make = source => {
     source: source,
     tokens: [],
     index: 0,
+    wordOffset: 0,
     line: 1,
     column: 1,
-    word: None,
   }
-  let fromString = str => Js.String.split("", str)->make
   let appendToken = (cursor, token) =>
     Array.concat(
       cursor.tokens,
@@ -98,58 +96,48 @@ module Cursor = {
         ),
       ],
     )
+  let toWord = cursor =>
+    Js.String.substrAtMost(~from=cursor.index, ~length=cursor.wordOffset, cursor.source)
   let appendWord = cursor =>
-    switch cursor.word {
-    | None => cursor.tokens
-    | Some(word) => appendToken(cursor, Identifier(word))
+    switch toWord(cursor) {
+    | "" => cursor.tokens
+    | word => appendToken(cursor, Identifier(word))
     }
   let commitToken = (cursor, token) => {
     ...cursor,
     tokens: appendToken(cursor, token),
-    index: cursor.index + Token.length(token),
-    line: cursor.line + Token.length(token),
-    column: cursor.column + Token.length(token),
-    word: None,
+    index: cursor.index + cursor.wordOffset,
+    wordOffset: 0,
   }
   let nextLine = cursor => {
     ...cursor,
     tokens: appendWord(cursor),
-    index: cursor.index + 2,
+    index: cursor.index + 1,
+    wordOffset: 0,
     line: cursor.line + 1,
     column: 1,
-    word: None,
   }
   let advance = cursor => {
     ...cursor,
-    tokens: appendWord(cursor),
     index: cursor.index + 1,
+    wordOffset: 0,
     column: cursor.column + 1,
-    word: None,
   }
-  let lookAhead = (cursor, word) => {
+  let lookAhead = cursor => {
     ...cursor,
     index: cursor.index + 1,
+    wordOffset: cursor.wordOffset + 1,
     column: cursor.column + 1,
-    word: Some(word),
   }
 }
 let rec scan = (cursor: Cursor.t) => {
-  let word = switch cursor.word {
-  | None => cursor.source[cursor.index]
-  | Some(w) =>
-    Some(
-      cursor.source
-      ->Array.slice(~offset=cursor.index - String.length(w), ~len=String.length(w) + 1)
-      ->Array.joinWith("", x => x),
-    )
-  }
-  switch word {
-  | None => cursor.tokens
-  | Some(" " | "\t") => cursor->Cursor.advance->scan
-  | Some("\n" | "\r") => cursor->Cursor.nextLine->scan
-  | Some(x) =>
+  switch Cursor.toWord(cursor) {
+  | "" => cursor.tokens
+  | " " | "\t" => cursor->Cursor.advance->scan
+  | "\n" | "\r" => cursor->Cursor.nextLine->scan
+  | x =>
     switch Token.fromString(x) {
-    | Identifier(word) => cursor->Cursor.lookAhead(word)->scan
+    | Identifier(_) => cursor->Cursor.lookAhead->scan
     | token => cursor->Cursor.commitToken(token)->scan
     }
   }
@@ -166,7 +154,7 @@ let input = `
     toggle => enabled
   }
 `
-let output = input->Cursor.fromString->scan
+let output = input->Cursor.make->scan
 type debugToken = {
   value: string,
   line: int,

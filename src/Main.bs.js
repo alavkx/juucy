@@ -37,7 +37,6 @@ function fromString(str) {
     case "\\" :
     case "]" :
     case "^" :
-    case "_" :
     case "|" :
         return {
                 TAG: /* Unexpected */1,
@@ -99,14 +98,10 @@ function make$1(source) {
           source: source,
           tokens: [],
           index: 0,
+          wordOffset: 0,
           line: 1,
-          column: 1,
-          word: undefined
+          column: 1
         };
-}
-
-function fromString$1(str) {
-  return make$1(str.split(""));
 }
 
 function appendToken(cursor, token) {
@@ -117,15 +112,19 @@ function appendToken(cursor, token) {
               }]);
 }
 
+function toWord(cursor) {
+  return cursor.source.substr(cursor.index, cursor.wordOffset);
+}
+
 function appendWord(cursor) {
-  var word = cursor.word;
-  if (word !== undefined) {
+  var word = toWord(cursor);
+  if (word === "") {
+    return cursor.tokens;
+  } else {
     return appendToken(cursor, {
                 TAG: /* Identifier */0,
                 _0: word
               });
-  } else {
-    return cursor.tokens;
   }
 }
 
@@ -133,10 +132,10 @@ function commitToken(cursor, token) {
   return {
           source: cursor.source,
           tokens: appendToken(cursor, token),
-          index: cursor.index + toString(token).length | 0,
-          line: cursor.line + toString(token).length | 0,
-          column: cursor.column + toString(token).length | 0,
-          word: undefined
+          index: cursor.index + cursor.wordOffset | 0,
+          wordOffset: 0,
+          line: cursor.line,
+          column: cursor.column
         };
 }
 
@@ -144,39 +143,39 @@ function nextLine(cursor) {
   return {
           source: cursor.source,
           tokens: appendWord(cursor),
-          index: cursor.index + 2 | 0,
+          index: cursor.index + 1 | 0,
+          wordOffset: 0,
           line: cursor.line + 1 | 0,
-          column: 1,
-          word: undefined
+          column: 1
         };
 }
 
 function advance(cursor) {
   return {
           source: cursor.source,
-          tokens: appendWord(cursor),
+          tokens: cursor.tokens,
           index: cursor.index + 1 | 0,
+          wordOffset: 0,
           line: cursor.line,
-          column: cursor.column + 1 | 0,
-          word: undefined
+          column: cursor.column + 1 | 0
         };
 }
 
-function lookAhead(cursor, word) {
+function lookAhead(cursor) {
   return {
           source: cursor.source,
           tokens: cursor.tokens,
           index: cursor.index + 1 | 0,
+          wordOffset: cursor.wordOffset + 1 | 0,
           line: cursor.line,
-          column: cursor.column + 1 | 0,
-          word: word
+          column: cursor.column + 1 | 0
         };
 }
 
 var Cursor = {
   make: make$1,
-  fromString: fromString$1,
   appendToken: appendToken,
+  toWord: toWord,
   appendWord: appendWord,
   commitToken: commitToken,
   nextLine: nextLine,
@@ -187,14 +186,10 @@ var Cursor = {
 function scan(_cursor) {
   while(true) {
     var cursor = _cursor;
-    var w = cursor.word;
-    var word = w !== undefined ? Belt_Array.joinWith(Belt_Array.slice(cursor.source, cursor.index - w.length | 0, w.length + 1 | 0), "", (function (x) {
-              return x;
-            })) : Belt_Array.get(cursor.source, cursor.index);
-    if (word === undefined) {
-      return cursor.tokens;
-    }
-    switch (word) {
+    var x = toWord(cursor);
+    switch (x) {
+      case "" :
+          return cursor.tokens;
       case "\n" :
       case "\r" :
           _cursor = nextLine(cursor);
@@ -204,16 +199,16 @@ function scan(_cursor) {
           _cursor = advance(cursor);
           continue ;
       default:
-        var word$1 = fromString(word);
-        if (typeof word$1 === "number") {
-          _cursor = commitToken(cursor, word$1);
+        var token = fromString(x);
+        if (typeof token === "number") {
+          _cursor = commitToken(cursor, token);
           continue ;
         }
-        if (word$1.TAG === /* Identifier */0) {
-          _cursor = lookAhead(cursor, word$1._0);
+        if (token.TAG === /* Identifier */0) {
+          _cursor = lookAhead(cursor);
           continue ;
         }
-        _cursor = commitToken(cursor, word$1);
+        _cursor = commitToken(cursor, token);
         continue ;
     }
   };
@@ -226,7 +221,7 @@ function report(line, where, message) {
 
 var input = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
 
-var output = scan(make$1(input.split("")));
+var output = scan(make$1(input));
 
 console.log(Belt_Array.map(output, (function (pt) {
             return {
