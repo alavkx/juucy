@@ -3,55 +3,244 @@
 
 var Belt_Array = require("rescript/lib/js/belt_Array.js");
 
-var input = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
+function fromString(str) {
+  switch (str) {
+    case "=>" :
+        return /* Arrow */3;
+    case "initial" :
+        return /* Initial */4;
+    case "state" :
+        return /* State */2;
+    case "{" :
+        return /* OpenCurly */0;
+    case "!" :
+    case "\"" :
+    case "#" :
+    case "$" :
+    case "%" :
+    case "&" :
+    case "'" :
+    case "(" :
+    case ")" :
+    case "*" :
+    case "+" :
+    case "," :
+    case "-" :
+    case "." :
+    case "/" :
+    case ":" :
+    case ";" :
+    case "<" :
+    case "?" :
+    case "@" :
+    case "[" :
+    case "\\" :
+    case "]" :
+    case "^" :
+    case "_" :
+    case "|" :
+        return {
+                TAG: /* Unexpected */1,
+                _0: str
+              };
+    case "}" :
+        return /* CloseCurly */1;
+    default:
+      return {
+              TAG: /* Identifier */0,
+              _0: str
+            };
+  }
+}
 
-function scan(_source, _tokens) {
+function toString(token) {
+  if (typeof token !== "number") {
+    return token._0;
+  }
+  switch (token) {
+    case /* OpenCurly */0 :
+        return "{";
+    case /* CloseCurly */1 :
+        return "}";
+    case /* State */2 :
+        return "state";
+    case /* Arrow */3 :
+        return "arrow";
+    case /* Initial */4 :
+        return "initial";
+    
+  }
+}
+
+function length(token) {
+  return toString(token).length;
+}
+
+var Token = {
+  fromString: fromString,
+  toString: toString,
+  length: length
+};
+
+function make(column, line, value) {
+  return {
+          value: value,
+          line: line,
+          column: column
+        };
+}
+
+var PositionToken = {
+  make: make
+};
+
+function make$1(source) {
+  return {
+          source: source,
+          tokens: [],
+          index: 0,
+          line: 1,
+          column: 1,
+          word: undefined
+        };
+}
+
+function fromString$1(str) {
+  return make$1(str.split(""));
+}
+
+function appendToken(cursor, token) {
+  return Belt_Array.concat(cursor.tokens, [{
+                value: token,
+                line: cursor.line - toString(token).length | 0,
+                column: cursor.column
+              }]);
+}
+
+function appendWord(cursor) {
+  var word = cursor.word;
+  if (word !== undefined) {
+    return appendToken(cursor, {
+                TAG: /* Identifier */0,
+                _0: word
+              });
+  } else {
+    return cursor.tokens;
+  }
+}
+
+function commitToken(cursor, token) {
+  return {
+          source: cursor.source,
+          tokens: appendToken(cursor, token),
+          index: cursor.index + toString(token).length | 0,
+          line: cursor.line + toString(token).length | 0,
+          column: cursor.column + toString(token).length | 0,
+          word: undefined
+        };
+}
+
+function nextLine(cursor) {
+  return {
+          source: cursor.source,
+          tokens: appendWord(cursor),
+          index: cursor.index + 2 | 0,
+          line: cursor.line + 1 | 0,
+          column: 1,
+          word: undefined
+        };
+}
+
+function advance(cursor) {
+  return {
+          source: cursor.source,
+          tokens: appendWord(cursor),
+          index: cursor.index + 1 | 0,
+          line: cursor.line,
+          column: cursor.column + 1 | 0,
+          word: undefined
+        };
+}
+
+function lookAhead(cursor, word) {
+  return {
+          source: cursor.source,
+          tokens: cursor.tokens,
+          index: cursor.index + 1 | 0,
+          line: cursor.line,
+          column: cursor.column + 1 | 0,
+          word: word
+        };
+}
+
+var Cursor = {
+  make: make$1,
+  fromString: fromString$1,
+  appendToken: appendToken,
+  appendWord: appendWord,
+  commitToken: commitToken,
+  nextLine: nextLine,
+  advance: advance,
+  lookAhead: lookAhead
+};
+
+function scan(_cursor) {
   while(true) {
-    var tokens = _tokens;
-    var source = _source;
-    var tail = source.slice(1);
-    var $$char = Belt_Array.get(source, 0);
-    if ($$char === undefined) {
-      return tokens;
+    var cursor = _cursor;
+    var w = cursor.word;
+    var word = w !== undefined ? Belt_Array.joinWith(Belt_Array.slice(cursor.source, cursor.index - w.length | 0, w.length + 1 | 0), "", (function (x) {
+              return x;
+            })) : Belt_Array.get(cursor.source, cursor.index);
+    if (word === undefined) {
+      return cursor.tokens;
     }
-    switch ($$char) {
-      case "" :
-          return tokens;
+    switch (word) {
       case "\n" :
+      case "\r" :
+          _cursor = nextLine(cursor);
+          continue ;
+      case "\t" :
       case " " :
-          _tokens = Belt_Array.concat(tokens, [/* Space */0]);
-          _source = tail;
-          continue ;
-      case "{" :
-          _tokens = Belt_Array.concat(tokens, [{
-                  TAG: /* Curly */2,
-                  _0: /* Open */0
-                }]);
-          _source = tail;
-          continue ;
-      case "}" :
-          _tokens = Belt_Array.concat(tokens, [{
-                  TAG: /* Curly */2,
-                  _0: /* Close */1
-                }]);
-          _source = tail;
+          _cursor = advance(cursor);
           continue ;
       default:
-        _tokens = Belt_Array.concat(tokens, [{
-                TAG: /* Unid */4,
-                _0: $$char
-              }]);
-        _source = tail;
+        var word$1 = fromString(word);
+        if (typeof word$1 === "number") {
+          _cursor = commitToken(cursor, word$1);
+          continue ;
+        }
+        if (word$1.TAG === /* Identifier */0) {
+          _cursor = lookAhead(cursor, word$1._0);
+          continue ;
+        }
+        _cursor = commitToken(cursor, word$1);
         continue ;
     }
   };
 }
 
-var output = scan(input.split(""), []);
+function report(line, where, message) {
+  console.log("[line: " + line + "] Error " + where + ": " + message);
+  
+}
 
-console.log(output);
+var input = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
 
-exports.input = input;
+var output = scan(make$1(input.split("")));
+
+console.log(Belt_Array.map(output, (function (pt) {
+            return {
+                    value: toString(pt.value),
+                    line: pt.line,
+                    column: pt.column
+                  };
+          })));
+
+exports.Token = Token;
+exports.PositionToken = PositionToken;
+exports.Cursor = Cursor;
 exports.scan = scan;
+exports.report = report;
+exports.input = input;
 exports.output = output;
 /* output Not a pure module */
