@@ -1,5 +1,7 @@
 open Belt
 
+let debug = true
+
 module Token = {
   type t =
     | OpenCurly
@@ -13,9 +15,10 @@ module Token = {
     switch str {
     | "{" => OpenCurly
     | "}" => CloseCurly
+    | "=>" => Arrow
     | "state" => State
     | "initial" => Initial
-    | "=>" => Arrow
+    | ""
     | ","
     | "<"
     | "."
@@ -46,15 +49,14 @@ module Token = {
     }
   let toString = token =>
     switch token {
-    | OpenCurly => "{"
-    | CloseCurly => "}"
-    | State => "state"
-    | Initial => "initial"
-    | Arrow => "arrow"
-    | Identifier(str)
-    | Unexpected(str) => str
+    | OpenCurly => "OpenCurly"
+    | CloseCurly => "CloseCurly"
+    | State => "State"
+    | Initial => "Initial"
+    | Arrow => "Arrow"
+    | Identifier(str) => `Identifier(${str})`
+    | Unexpected(str) => `Unexpected(${str})`
     }
-  let length = token => token->toString->String.length
 }
 module PositionToken = {
   type t = {
@@ -85,61 +87,78 @@ module Cursor = {
     line: 1,
     column: 1,
   }
-  let appendToken = (cursor, token) =>
-    Array.concat(
-      cursor.tokens,
-      [
-        PositionToken.make(
-          ~value=token,
-          ~line=cursor.line - Token.length(token),
-          ~column=cursor.column,
-        ),
-      ],
-    )
   let toWord = cursor =>
-    Js.String.substrAtMost(~from=cursor.index, ~length=cursor.wordOffset, cursor.source)
-  let appendWord = cursor =>
-    switch toWord(cursor) {
-    | "" => cursor.tokens
-    | word => appendToken(cursor, Identifier(word))
+    Js.String.substrAtMost(~from=cursor.index, ~length=cursor.wordOffset + 1, cursor.source)
+  let toCharacter = cursor =>
+    Js.String.substrAtMost(~from=cursor.index + cursor.wordOffset, ~length=1, cursor.source)
+  let trace = (name, fn, cursor) => {
+    let res = fn(cursor)
+    if debug {
+      Js.log(`[${name}]`)
     }
-  let commitToken = (cursor, token) => {
-    ...cursor,
-    tokens: appendToken(cursor, token),
-    index: cursor.index + cursor.wordOffset,
-    wordOffset: 0,
+    res
   }
-  let nextLine = cursor => {
+  let trace2 = (name, fn, cursor, token: Token.t) => {
+    let res = fn(cursor, token)
+    if debug {
+      Js.log(`[${name}] ${Token.toString(token)}`)
+      Js.log(`Current character: ${toCharacter(cursor)}`)
+      Js.log(`Current word: ${toWord(cursor)}`)
+      Js.log(
+        `index: ${Int.toString(cursor.index)} — wordOffset: ${Int.toString(cursor.wordOffset)}`,
+      )
+      Js.log(`------------------------------------`)
+    }
+    res
+  }
+  let commitToken = trace2("commitToken", (cursor, token) => {
     ...cursor,
-    tokens: appendWord(cursor),
+    tokens: Array.concat(
+      cursor.tokens,
+      [PositionToken.make(~value=token, ~line=cursor.line, ~column=cursor.column)],
+    ),
+    wordOffset: 0,
+    index: cursor.index + cursor.wordOffset + 1,
+    column: cursor.column + cursor.wordOffset + 1,
+  })
+  let nextLine = trace("nextLine", cursor => {
+    ...cursor,
     index: cursor.index + 1,
     wordOffset: 0,
     line: cursor.line + 1,
     column: 1,
-  }
-  let advance = cursor => {
+  })
+  let advance = trace("advance", cursor => {
     ...cursor,
     index: cursor.index + 1,
     wordOffset: 0,
     column: cursor.column + 1,
-  }
-  let lookAhead = cursor => {
+  })
+  let lookahead = trace("lookahead", cursor => {
     ...cursor,
-    index: cursor.index + 1,
     wordOffset: cursor.wordOffset + 1,
-    column: cursor.column + 1,
-  }
+  })
 }
-let rec scan = (cursor: Cursor.t) => {
-  switch Cursor.toWord(cursor) {
+let alpha = str => Js.Re.test_(%re("/^[A-Z_]+$/i"), str)
+let alphanumeric = str => Js.Re.test_(%re("/^\w+$/"), str)
+let rec scanIdentifier = cursor =>
+  if cursor->Cursor.lookahead->Cursor.toCharacter->alphanumeric {
+    cursor->Cursor.lookahead->scanIdentifier
+  } else {
+    Cursor.commitToken(cursor, cursor->Cursor.toWord->Token.fromString)
+  }
+let rec scan = cursor => {
+  switch Cursor.toCharacter(cursor) {
   | "" => cursor.tokens
   | " " | "\t" => cursor->Cursor.advance->scan
   | "\n" | "\r" => cursor->Cursor.nextLine->scan
-  | x =>
-    switch Token.fromString(x) {
-    | Identifier(_) => cursor->Cursor.lookAhead->scan
-    | token => cursor->Cursor.commitToken(token)->scan
+  | "=" as lexeme =>
+    switch cursor->Cursor.lookahead->Cursor.toCharacter {
+    | ">" => cursor->Cursor.lookahead->Cursor.commitToken(Arrow)->scan
+    | _ => cursor->Cursor.commitToken(Unexpected(lexeme))->scan
     }
+  | char if alpha(char) => cursor->scanIdentifier->scan
+  | _ => cursor->Cursor.commitToken(cursor->Cursor.toWord->Token.fromString)->scan
   }
 }
 let report = (line, where, message) => {
@@ -155,15 +174,4 @@ let input = `
   }
 `
 let output = input->Cursor.make->scan
-type debugToken = {
-  value: string,
-  line: int,
-  column: int,
-}
-output
-->Array.map(pt => {
-  value: Token.toString(pt.value),
-  line: pt.line,
-  column: pt.column,
-})
-->Js.log
+Js.log(output)
