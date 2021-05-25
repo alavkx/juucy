@@ -6,12 +6,48 @@ var Belt_Array = require("rescript/lib/js/belt_Array.js");
 
 function fromString(str) {
   switch (str) {
+    case "(" :
+        return /* OpenParens */2;
+    case ")" :
+        return /* CloseParens */3;
+    case "=" :
+        return /* Equals */15;
     case "=>" :
-        return /* Arrow */3;
+        return /* Arrow */5;
+    case "@entry" :
+        return {
+                TAG: /* SpecialEvent */1,
+                _0: /* Entry */0
+              };
+    case "@exit" :
+        return {
+                TAG: /* SpecialEvent */1,
+                _0: /* Exit */1
+              };
+    case "action" :
+        return /* Action */13;
+    case "assign" :
+        return /* Assign */11;
+    case "delay" :
+        return /* Delay */9;
+    case "guard" :
+        return /* Guard */14;
     case "initial" :
-        return /* Initial */4;
+        return /* Initial */6;
+    case "invoke" :
+        return /* Invoke */10;
+    case "machine" :
+        return /* Machine */7;
+    case "on" :
+        return /* On */12;
+    case "send" :
+        return /* Send */17;
+    case "spawn" :
+        return /* Spawn */16;
     case "state" :
-        return /* State */2;
+        return /* State */4;
+    case "use" :
+        return /* Use */8;
     case "{" :
         return /* OpenCurly */0;
     case "" :
@@ -22,8 +58,6 @@ function fromString(str) {
     case "%" :
     case "&" :
     case "'" :
-    case "(" :
-    case ")" :
     case "*" :
     case "+" :
     case "," :
@@ -41,39 +75,60 @@ function fromString(str) {
     case "^" :
     case "|" :
         return {
-                TAG: /* Unexpected */1,
+                TAG: /* Unexpected */5,
                 _0: str
               };
     case "}" :
         return /* CloseCurly */1;
     default:
       return {
-              TAG: /* Word */0,
+              TAG: /* Word */3,
               _0: str
             };
   }
 }
 
 function toString(token) {
-  if (typeof token !== "number") {
-    if (token.TAG === /* Word */0) {
-      return "Word(" + token._0 + ")";
-    } else {
-      return "Unexpected(" + token._0 + ")";
+  if (typeof token === "number") {
+    switch (token) {
+      case /* OpenCurly */0 :
+          return "OpenCurly";
+      case /* CloseCurly */1 :
+          return "CloseCurly";
+      case /* State */4 :
+          return "State";
+      case /* Arrow */5 :
+          return "Arrow";
+      case /* Initial */6 :
+          return "Initial";
+      default:
+        throw {
+              RE_EXN_ID: "Match_failure",
+              _1: [
+                "Main.res",
+                83,
+                4
+              ],
+              Error: new Error()
+            };
     }
-  }
-  switch (token) {
-    case /* OpenCurly */0 :
-        return "OpenCurly";
-    case /* CloseCurly */1 :
-        return "CloseCurly";
-    case /* State */2 :
-        return "State";
-    case /* Arrow */3 :
-        return "Arrow";
-    case /* Initial */4 :
-        return "Initial";
-    
+  } else {
+    switch (token.TAG | 0) {
+      case /* Word */3 :
+          return "Word(" + token._0 + ")";
+      case /* Unexpected */5 :
+          return "Unexpected(" + token._0 + ")";
+      default:
+        throw {
+              RE_EXN_ID: "Match_failure",
+              _1: [
+                "Main.res",
+                83,
+                4
+              ],
+              Error: new Error()
+            };
+    }
   }
 }
 
@@ -234,11 +289,11 @@ function scan(_cursor) {
       case "=" :
           var match = toCharacter(lookahead(cursor));
           if (match === ">") {
-            _cursor = commitToken(lookahead(cursor), /* Arrow */3);
+            _cursor = commitToken(lookahead(cursor), /* Arrow */5);
             continue ;
           }
           _cursor = commitToken(cursor, {
-                TAG: /* Unexpected */1,
+                TAG: /* Unexpected */5,
                 _0: lexeme
               });
           continue ;

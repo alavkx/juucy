@@ -3,21 +3,55 @@ open Belt
 let debug = true
 
 module Token = {
+  type timeUnit = Seconds | Milliseconds | Minutes
+  type specialEvent = Entry | Exit
   type t =
     | OpenCurly
     | CloseCurly
+    | OpenParens
+    | CloseParens
     | State
     | Arrow
     | Initial
+    | Machine
+    | Use
+    | Delay
+    | Invoke
+    | Assign
+    | On
+    | Action
+    | Guard
+    | Equals
+    | Spawn
+    | Send
+    | Timeframe(timeUnit, int)
+    | SpecialEvent(specialEvent)
+    | String(string)
     | Word(string)
+    | Symbol(string)
     | Unexpected(string)
   let fromString = str =>
     switch str {
     | "{" => OpenCurly
     | "}" => CloseCurly
+    | "(" => OpenParens
+    | ")" => CloseParens
+    | "=" => Equals
     | "=>" => Arrow
+    | "on" => On
+    | "use" => Use
+    | "delay" => Delay
+    | "invoke" => Invoke
+    | "assign" => Assign
     | "state" => State
+    | "action" => Action
+    | "guard" => Guard
+    | "spawn" => Spawn
+    | "send" => Send
     | "initial" => Initial
+    | "machine" => Machine
+    | "@entry" => SpecialEvent(Entry)
+    | "@exit" => SpecialEvent(Exit)
     | ""
     | ","
     | "<"
@@ -34,8 +68,6 @@ module Token = {
     | "|"
     | "+"
     | "-"
-    | "("
-    | ")"
     | "*"
     | "&"
     | "^"
