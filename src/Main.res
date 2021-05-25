@@ -9,7 +9,7 @@ module Token = {
     | State
     | Arrow
     | Initial
-    | Identifier(string)
+    | Word(string)
     | Unexpected(string)
   let fromString = str =>
     switch str {
@@ -45,7 +45,7 @@ module Token = {
     | "@"
     | "!" =>
       Unexpected(str)
-    | s => Identifier(s)
+    | s => Word(s)
     }
   let toString = token =>
     switch token {
@@ -54,7 +54,7 @@ module Token = {
     | State => "State"
     | Initial => "Initial"
     | Arrow => "Arrow"
-    | Identifier(str) => `Identifier(${str})`
+    | Word(str) => `Word(${str})`
     | Unexpected(str) => `Unexpected(${str})`
     }
 }

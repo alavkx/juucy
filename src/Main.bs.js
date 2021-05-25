@@ -48,7 +48,7 @@ function fromString(str) {
         return /* CloseCurly */1;
     default:
       return {
-              TAG: /* Identifier */0,
+              TAG: /* Word */0,
               _0: str
             };
   }
@@ -56,8 +56,8 @@ function fromString(str) {
 
 function toString(token) {
   if (typeof token !== "number") {
-    if (token.TAG === /* Identifier */0) {
-      return "Identifier(" + token._0 + ")";
+    if (token.TAG === /* Word */0) {
+      return "Word(" + token._0 + ")";
     } else {
       return "Unexpected(" + token._0 + ")";
     }
