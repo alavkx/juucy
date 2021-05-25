@@ -174,4 +174,8 @@ let input = `
   }
 `
 let output = input->Cursor.make->scan
-Js.log(output)
+if debug {
+  Js.log(`-------------[Tokens]---------------`)
+  Js.log(output)
+  Js.log(`------------------------------------`)
+}

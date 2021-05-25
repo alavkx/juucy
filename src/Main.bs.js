@@ -262,7 +262,11 @@ var input = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state
 
 var output = scan(make$1(input));
 
+console.log("-------------[Tokens]---------------");
+
 console.log(output);
+
+console.log("------------------------------------");
 
 var debug = true;
 
