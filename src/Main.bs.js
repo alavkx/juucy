@@ -155,6 +155,8 @@ function toString(token) {
           return "Symbol(" + token._0 + ")";
       case /* Unexpected */5 :
           return "Unexpected(" + token._0 + ")";
+      case /* Number */6 :
+          return "Number(" + String(token._0) + ")";
       
     }
   }
@@ -176,6 +178,8 @@ function make(column, line, value) {
 var PositionToken = {
   make: make
 };
+
+var Grammar = {};
 
 function make$1(source) {
   return {
@@ -202,7 +206,8 @@ function trace(name, fn, cursor) {
   return res;
 }
 
-function trace2(name, fn, cursor, token) {
+function trace2(name, fn, cursor, cursorToToken) {
+  var token = Curry._1(cursorToToken, cursor);
   var res = Curry._2(fn, cursor, token);
   console.log("[" + name + "] " + toString(token));
   console.log("Current character: " + toCharacter(cursor));
@@ -212,21 +217,19 @@ function trace2(name, fn, cursor, token) {
   return res;
 }
 
-function commitToken(param, param$1) {
-  return trace2("commitToken", (function (cursor, token) {
-                return {
-                        source: cursor.source,
-                        tokens: Belt_Array.concat(cursor.tokens, [{
-                                value: token,
-                                line: cursor.line,
-                                column: cursor.column
-                              }]),
-                        index: (cursor.index + cursor.wordOffset | 0) + 1 | 0,
-                        wordOffset: 0,
-                        line: cursor.line,
-                        column: (cursor.column + cursor.wordOffset | 0) + 1 | 0
-                      };
-              }), param, param$1);
+function commitWith(cursor, cursorToToken) {
+  return {
+          source: cursor.source,
+          tokens: Belt_Array.concat(cursor.tokens, [{
+                  value: Curry._1(cursorToToken, cursor),
+                  line: cursor.line,
+                  column: cursor.column
+                }]),
+          index: (cursor.index + cursor.wordOffset | 0) + 1 | 0,
+          wordOffset: 0,
+          line: cursor.line,
+          column: (cursor.column + cursor.wordOffset | 0) + 1 | 0
+        };
 }
 
 function nextLine(param) {
@@ -274,7 +277,7 @@ var Cursor = {
   toCharacter: toCharacter,
   trace: trace,
   trace2: trace2,
-  commitToken: commitToken,
+  commitWith: commitWith,
   nextLine: nextLine,
   advance: advance,
   lookahead: lookahead
@@ -288,11 +291,15 @@ function alphanumeric(str) {
   return /^\w+$/.test(str);
 }
 
-function scanIdentifier(_cursor) {
+function numeric(str) {
+  return /^\d+$/.test(str);
+}
+
+function scanWhile(_cursor, predicate) {
   while(true) {
     var cursor = _cursor;
-    if (!alphanumeric(toCharacter(lookahead(cursor)))) {
-      return commitToken(cursor, fromString(toWord(cursor)));
+    if (!Curry._1(predicate, toCharacter(lookahead(cursor)))) {
+      return cursor;
     }
     _cursor = lookahead(cursor);
     continue ;
@@ -303,6 +310,8 @@ function scan(_cursor) {
   while(true) {
     var cursor = _cursor;
     var lexeme = toCharacter(cursor);
+    var exit = 0;
+    var $$char;
     switch (lexeme) {
       case "" :
           return cursor.tokens;
@@ -314,24 +323,66 @@ function scan(_cursor) {
       case " " :
           _cursor = advance(cursor);
           continue ;
+      case "\"" :
+      case "'" :
+          exit = 1;
+          break;
       case "=" :
           var match = toCharacter(lookahead(cursor));
           if (match === ">") {
-            _cursor = commitToken(lookahead(cursor), /* Arrow */5);
+            _cursor = commitWith(lookahead(cursor), (function (_c) {
+                    return /* Arrow */5;
+                  }));
             continue ;
           }
-          _cursor = commitToken(cursor, {
-                TAG: /* Unexpected */5,
-                _0: lexeme
-              });
+          _cursor = commitWith(cursor, (function(lexeme){
+              return function (_c) {
+                return {
+                        TAG: /* Unexpected */5,
+                        _0: lexeme
+                      };
+              }
+              }(lexeme)));
           continue ;
+      case "@" :
+          $$char = lexeme;
+          exit = 2;
+          break;
       default:
-        if (alpha(lexeme)) {
-          _cursor = scanIdentifier(cursor);
+        $$char = lexeme;
+        exit = 2;
+    }
+    switch (exit) {
+      case 1 :
+          _cursor = commitWith(scanWhile(cursor, (function(lexeme){
+                  return function ($$char) {
+                    return $$char !== lexeme;
+                  }
+                  }(lexeme))), (function (c) {
+                  return {
+                          TAG: /* String */2,
+                          _0: toWord(c)
+                        };
+                }));
           continue ;
-        }
-        _cursor = commitToken(cursor, fromString(toWord(cursor)));
-        continue ;
+      case 2 :
+          if (alpha($$char)) {
+            _cursor = commitWith(scanWhile(cursor, alphanumeric), (function (c) {
+                    return fromString(toWord(c));
+                  }));
+            continue ;
+          }
+          if (numeric(lexeme)) {
+            _cursor = commitWith(scanWhile(cursor, numeric), (function (c) {
+                    return fromString(toWord(c));
+                  }));
+            continue ;
+          }
+          _cursor = commitWith(cursor, (function (c) {
+                  return fromString(toWord(c));
+                }));
+          continue ;
+      
     }
   };
 }
@@ -356,10 +407,12 @@ var debug = true;
 exports.debug = debug;
 exports.Token = Token;
 exports.PositionToken = PositionToken;
+exports.Grammar = Grammar;
 exports.Cursor = Cursor;
 exports.alpha = alpha;
 exports.alphanumeric = alphanumeric;
-exports.scanIdentifier = scanIdentifier;
+exports.numeric = numeric;
+exports.scanWhile = scanWhile;
 exports.scan = scan;
 exports.report = report;
 exports.input = input;

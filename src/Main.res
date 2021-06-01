@@ -1,7 +1,6 @@
 open Belt
 
 let debug = true
-
 module Token = {
   type timeUnit = Seconds | Milliseconds | Minutes
   type specialEvent = Entry | Exit
@@ -30,6 +29,7 @@ module Token = {
     | Word(string)
     | Symbol(string)
     | Unexpected(string)
+    | Number(int)
   let fromString = str =>
     switch str {
     | "{" => OpenCurly
@@ -96,6 +96,9 @@ module Token = {
     | Equals => "Equals"
     | Spawn => "Spawn"
     | Send => "Send"
+    | State => "State"
+    | Initial => "Initial"
+    | Arrow => "Arrow"
     | Timeframe(Milliseconds, ms) => `Timeframe(MS, ${ms->Int.toString}]`
     | Timeframe(Seconds, s) => `Timeframe(S, ${s->Int.toString}]`
     | Timeframe(Minutes, min) => `Timeframe(MIN, ${min->Int.toString}]`
@@ -103,9 +106,7 @@ module Token = {
     | SpecialEvent(Exit) => "SpecialEvent(Exit)"
     | String(str) => `String(${str})`
     | Symbol(symb) => `Symbol(${symb})`
-    | State => "State"
-    | Initial => "Initial"
-    | Arrow => "Arrow"
+    | Number(num) => `Number(${num->Int.toString})`
     | Word(str) => `Word(${str})`
     | Unexpected(str) => `Unexpected(${str})`
     }
@@ -121,6 +122,9 @@ module PositionToken = {
     line: line,
     column: column,
   }
+}
+module Grammar = {
+  type t
 }
 module Cursor = {
   type t = {
@@ -150,7 +154,8 @@ module Cursor = {
     }
     res
   }
-  let trace2 = (name, fn, cursor, token: Token.t) => {
+  let trace2 = (name, fn, cursor, cursorToToken: t => Token.t) => {
+    let token = cursorToToken(cursor)
     let res = fn(cursor, token)
     if debug {
       Js.log(`[${name}] ${Token.toString(token)}`)
@@ -163,16 +168,16 @@ module Cursor = {
     }
     res
   }
-  let commitToken = trace2("commitToken", (cursor, token) => {
+  let commitWith = (cursor, cursorToToken: t => Token.t) => {
     ...cursor,
     tokens: Array.concat(
       cursor.tokens,
-      [PositionToken.make(~value=token, ~line=cursor.line, ~column=cursor.column)],
+      [PositionToken.make(~value=cursorToToken(cursor), ~line=cursor.line, ~column=cursor.column)],
     ),
     wordOffset: 0,
     index: cursor.index + cursor.wordOffset + 1,
     column: cursor.column + cursor.wordOffset + 1,
-  })
+  }
   let nextLine = trace("nextLine", cursor => {
     ...cursor,
     index: cursor.index + 1,
@@ -193,11 +198,12 @@ module Cursor = {
 }
 let alpha = str => Js.Re.test_(%re("/^[A-Z_]+$/i"), str)
 let alphanumeric = str => Js.Re.test_(%re("/^\w+$/"), str)
-let rec scanIdentifier = cursor =>
-  if cursor->Cursor.lookahead->Cursor.toCharacter->alphanumeric {
-    cursor->Cursor.lookahead->scanIdentifier
+let numeric = str => Js.Re.test_(%re("/^\d+$/"), str)
+let rec scanWhile = (cursor, predicate) =>
+  if cursor->Cursor.lookahead->Cursor.toCharacter->predicate {
+    cursor->Cursor.lookahead->scanWhile(predicate)
   } else {
-    Cursor.commitToken(cursor, cursor->Cursor.toWord->Token.fromString)
+    cursor
   }
 let rec scan = cursor => {
   switch Cursor.toCharacter(cursor) {
@@ -206,11 +212,23 @@ let rec scan = cursor => {
   | "\n" | "\r" => cursor->Cursor.nextLine->scan
   | "=" as lexeme =>
     switch cursor->Cursor.lookahead->Cursor.toCharacter {
-    | ">" => cursor->Cursor.lookahead->Cursor.commitToken(Arrow)->scan
-    | _ => cursor->Cursor.commitToken(Unexpected(lexeme))->scan
+    | ">" => cursor->Cursor.lookahead->Cursor.commitWith(_c => Arrow)->scan
+    | _ => cursor->Cursor.commitWith(_c => Unexpected(lexeme))->scan
     }
-  | char if alpha(char) => cursor->scanIdentifier->scan
-  | _ => cursor->Cursor.commitToken(cursor->Cursor.toWord->Token.fromString)->scan
+  | "\"" as quote | "'" as quote =>
+    cursor
+    ->scanWhile(char => char !== quote)
+    ->Cursor.commitWith(c => String(c->Cursor.toWord))
+    ->scan
+  | "@" as char
+  | char if alpha(char) =>
+    cursor
+    ->scanWhile(alphanumeric)
+    ->Cursor.commitWith(c => c->Cursor.toWord->Token.fromString)
+    ->scan
+  | char if numeric(char) =>
+    cursor->scanWhile(numeric)->Cursor.commitWith(c => c->Cursor.toWord->Token.fromString)->scan
+  | _ => cursor->Cursor.commitWith(c => c->Cursor.toWord->Token.fromString)->scan
   }
 }
 let report = (line, where, message) => {
