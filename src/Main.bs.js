@@ -142,13 +142,17 @@ function toString(token) {
             
           }
       case /* SpecialEvent */1 :
-          return "SpecialEvent";
+          if (token._0) {
+            return "SpecialEvent(Exit)";
+          } else {
+            return "SpecialEvent(Entry)";
+          }
       case /* String */2 :
-          return "String";
+          return "String(" + token._0 + ")";
       case /* Word */3 :
           return "Word(" + token._0 + ")";
       case /* Symbol */4 :
-          return "Symbol";
+          return "Symbol(" + token._0 + ")";
       case /* Unexpected */5 :
           return "Unexpected(" + token._0 + ")";
       
