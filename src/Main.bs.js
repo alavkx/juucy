@@ -95,39 +95,63 @@ function toString(token) {
           return "OpenCurly";
       case /* CloseCurly */1 :
           return "CloseCurly";
+      case /* OpenParens */2 :
+          return "OpenParens";
+      case /* CloseParens */3 :
+          return "CloseParens";
       case /* State */4 :
           return "State";
       case /* Arrow */5 :
           return "Arrow";
       case /* Initial */6 :
           return "Initial";
-      default:
-        throw {
-              RE_EXN_ID: "Match_failure",
-              _1: [
-                "Main.res",
-                83,
-                4
-              ],
-              Error: new Error()
-            };
+      case /* Machine */7 :
+          return "Machine";
+      case /* Use */8 :
+          return "Use";
+      case /* Delay */9 :
+          return "Delay";
+      case /* Invoke */10 :
+          return "Invoke";
+      case /* Assign */11 :
+          return "Assign";
+      case /* On */12 :
+          return "On";
+      case /* Action */13 :
+          return "Action";
+      case /* Guard */14 :
+          return "Guard";
+      case /* Equals */15 :
+          return "Equals";
+      case /* Spawn */16 :
+          return "Spawn";
+      case /* Send */17 :
+          return "Send";
+      
     }
   } else {
     switch (token.TAG | 0) {
+      case /* Timeframe */0 :
+          switch (token._0) {
+            case /* Seconds */0 :
+                return "Timeframe(S, " + String(token._1) + "]";
+            case /* Milliseconds */1 :
+                return "Timeframe(MS, " + String(token._1) + "]";
+            case /* Minutes */2 :
+                return "Timeframe(MIN, " + String(token._1) + "]";
+            
+          }
+      case /* SpecialEvent */1 :
+          return "SpecialEvent";
+      case /* String */2 :
+          return "String";
       case /* Word */3 :
           return "Word(" + token._0 + ")";
+      case /* Symbol */4 :
+          return "Symbol";
       case /* Unexpected */5 :
           return "Unexpected(" + token._0 + ")";
-      default:
-        throw {
-              RE_EXN_ID: "Match_failure",
-              _1: [
-                "Main.res",
-                83,
-                4
-              ],
-              Error: new Error()
-            };
+      
     }
   }
 }
