@@ -1,6 +1,6 @@
 open Belt
 
-let debug = true
+let debug = false
 module Token = {
   type timeUnit = Seconds | Milliseconds | Minutes
   type specialEvent = Entry | Exit
@@ -29,7 +29,7 @@ module Token = {
     | Word(string)
     | Symbol(string)
     | Unexpected(string)
-    | Number(int)
+    | Number(string)
   let fromString = str =>
     switch str {
     | "{" => OpenCurly
@@ -106,7 +106,7 @@ module Token = {
     | SpecialEvent(Exit) => "SpecialEvent(Exit)"
     | String(str) => `String(${str})`
     | Symbol(symb) => `Symbol(${symb})`
-    | Number(num) => `Number(${num->Int.toString})`
+    | Number(str) => `Number(${str})`
     | Word(str) => `Word(${str})`
     | Unexpected(str) => `Unexpected(${str})`
     }
@@ -150,12 +150,13 @@ module Cursor = {
   let trace = (name, fn, cursor) => {
     let res = fn(cursor)
     if debug {
-      Js.log(`[${name}]`)
+      Js.log(`[${name}] :: ${cursor->toWord} -> ${res->toWord}`)
+      Js.log(`Index: ${cursor.index->Int.toString} — Character: ${cursor->toCharacter}`)
     }
     res
   }
-  let trace2 = (name, fn, cursor, cursorToToken: t => Token.t) => {
-    let token = cursorToToken(cursor)
+  let trace2 = (name, fn, cursor, wordToToken: String.t => Token.t) => {
+    let token = wordToToken(cursor->toWord)
     let res = fn(cursor, token)
     if debug {
       Js.log(`[${name}] ${Token.toString(token)}`)
@@ -168,11 +169,17 @@ module Cursor = {
     }
     res
   }
-  let commitWith = (cursor, cursorToToken: t => Token.t) => {
+  let commit = (cursor, wordToToken: String.t => Token.t) => {
     ...cursor,
     tokens: Array.concat(
       cursor.tokens,
-      [PositionToken.make(~value=cursorToToken(cursor), ~line=cursor.line, ~column=cursor.column)],
+      [
+        PositionToken.make(
+          ~value=wordToToken(cursor->toWord),
+          ~line=cursor.line,
+          ~column=cursor.column,
+        ),
+      ],
     ),
     wordOffset: 0,
     index: cursor.index + cursor.wordOffset + 1,
@@ -199,9 +206,9 @@ module Cursor = {
 let alpha = str => Js.Re.test_(%re("/^[A-Z_]+$/i"), str)
 let alphanumeric = str => Js.Re.test_(%re("/^\w+$/"), str)
 let numeric = str => Js.Re.test_(%re("/^\d+$/"), str)
-let rec scanWhile = (cursor, predicate) =>
+let rec lookWhile = (cursor, predicate) =>
   if cursor->Cursor.lookahead->Cursor.toCharacter->predicate {
-    cursor->Cursor.lookahead->scanWhile(predicate)
+    cursor->Cursor.lookahead->lookWhile(predicate)
   } else {
     cursor
   }
@@ -210,31 +217,33 @@ let rec scan = cursor => {
   | "" => cursor.tokens
   | " " | "\t" => cursor->Cursor.advance->scan
   | "\n" | "\r" => cursor->Cursor.nextLine->scan
-  | "=" as lexeme =>
+  | "=" =>
     switch cursor->Cursor.lookahead->Cursor.toCharacter {
-    | ">" => cursor->Cursor.lookahead->Cursor.commitWith(_c => Arrow)->scan
-    | _ => cursor->Cursor.commitWith(_c => Unexpected(lexeme))->scan
+    | ">" => cursor->Cursor.lookahead->Cursor.commit(_w => Arrow)->scan
+    | _ => cursor->Cursor.commit(_w => Equals)->scan
     }
   | "\"" as quote | "'" as quote =>
     cursor
-    ->scanWhile(char => char !== quote)
-    ->Cursor.commitWith(c => String(c->Cursor.toWord))
+    ->lookWhile(char => {
+      Js.log(`char: ${char}, quote: ${quote}`)
+      Js.log(char !== quote)
+      char !== quote
+    })
+    ->Cursor.commit(w => String(w))
     ->scan
   | "@" as char
   | char if alpha(char) =>
-    cursor
-    ->scanWhile(alphanumeric)
-    ->Cursor.commitWith(c => c->Cursor.toWord->Token.fromString)
-    ->scan
-  | char if numeric(char) =>
-    cursor->scanWhile(numeric)->Cursor.commitWith(c => c->Cursor.toWord->Token.fromString)->scan
-  | _ => cursor->Cursor.commitWith(c => c->Cursor.toWord->Token.fromString)->scan
+    cursor->lookWhile(alphanumeric)->Cursor.commit(w => Token.fromString(w))->scan
+  | char if numeric(char) => cursor->lookWhile(numeric)->Cursor.commit(w => Number(w))->scan
+  | _ => cursor->Cursor.commit(w => Token.fromString(w))->scan
   }
 }
 let report = (line, where, message) => {
   Js.log(`[line: ${line}] Error ${where}: ${message}`)
 }
 let input = `
+  ayy = "lmao"
+  jaja = 400
   state enabled {
     toggle => disabled
   }
@@ -243,9 +252,11 @@ let input = `
     toggle => enabled
   }
 `
-let output = input->Cursor.make->scan
-if debug {
-  Js.log(`-------------[Tokens]---------------`)
-  Js.log(output)
-  Js.log(`------------------------------------`)
-}
+// let output = input->Cursor.make->scan
+// if debug {
+//   Js.log(`-------------[Tokens]---------------`)
+//   Js.log(output)
+//   Js.log(`------------------------------------`)
+// }
+
+Js.log(Js.String.substrAtMost(~from=9, ~length=1, input))

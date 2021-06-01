@@ -156,7 +156,7 @@ function toString(token) {
       case /* Unexpected */5 :
           return "Unexpected(" + token._0 + ")";
       case /* Number */6 :
-          return "Number(" + String(token._0) + ")";
+          return "Number(" + token._0 + ")";
       
     }
   }
@@ -202,26 +202,20 @@ function toCharacter(cursor) {
 
 function trace(name, fn, cursor) {
   var res = Curry._1(fn, cursor);
-  console.log("[" + name + "]");
   return res;
 }
 
-function trace2(name, fn, cursor, cursorToToken) {
-  var token = Curry._1(cursorToToken, cursor);
+function trace2(name, fn, cursor, wordToToken) {
+  var token = Curry._1(wordToToken, toWord(cursor));
   var res = Curry._2(fn, cursor, token);
-  console.log("[" + name + "] " + toString(token));
-  console.log("Current character: " + toCharacter(cursor));
-  console.log("Current word: " + toWord(cursor));
-  console.log("index: " + String(cursor.index) + " — wordOffset: " + String(cursor.wordOffset));
-  console.log("------------------------------------");
   return res;
 }
 
-function commitWith(cursor, cursorToToken) {
+function commit(cursor, wordToToken) {
   return {
           source: cursor.source,
           tokens: Belt_Array.concat(cursor.tokens, [{
-                  value: Curry._1(cursorToToken, cursor),
+                  value: Curry._1(wordToToken, toWord(cursor)),
                   line: cursor.line,
                   column: cursor.column
                 }]),
@@ -277,7 +271,7 @@ var Cursor = {
   toCharacter: toCharacter,
   trace: trace,
   trace2: trace2,
-  commitWith: commitWith,
+  commit: commit,
   nextLine: nextLine,
   advance: advance,
   lookahead: lookahead
@@ -295,7 +289,7 @@ function numeric(str) {
   return /^\d+$/.test(str);
 }
 
-function scanWhile(_cursor, predicate) {
+function lookWhile(_cursor, predicate) {
   while(true) {
     var cursor = _cursor;
     if (!Curry._1(predicate, toCharacter(lookahead(cursor)))) {
@@ -309,10 +303,10 @@ function scanWhile(_cursor, predicate) {
 function scan(_cursor) {
   while(true) {
     var cursor = _cursor;
-    var lexeme = toCharacter(cursor);
+    var $$char = toCharacter(cursor);
     var exit = 0;
-    var $$char;
-    switch (lexeme) {
+    var $$char$1;
+    switch ($$char) {
       case "" :
           return cursor.tokens;
       case "\n" :
@@ -330,57 +324,53 @@ function scan(_cursor) {
       case "=" :
           var match = toCharacter(lookahead(cursor));
           if (match === ">") {
-            _cursor = commitWith(lookahead(cursor), (function (_c) {
+            _cursor = commit(lookahead(cursor), (function (_w) {
                     return /* Arrow */5;
                   }));
             continue ;
           }
-          _cursor = commitWith(cursor, (function(lexeme){
-              return function (_c) {
-                return {
-                        TAG: /* Unexpected */5,
-                        _0: lexeme
-                      };
-              }
-              }(lexeme)));
+          _cursor = commit(cursor, (function (_w) {
+                  return /* Equals */15;
+                }));
           continue ;
       case "@" :
-          $$char = lexeme;
+          $$char$1 = $$char;
           exit = 2;
           break;
       default:
-        $$char = lexeme;
+        $$char$1 = $$char;
         exit = 2;
     }
     switch (exit) {
       case 1 :
-          _cursor = commitWith(scanWhile(cursor, (function(lexeme){
-                  return function ($$char) {
-                    return $$char !== lexeme;
+          _cursor = commit(lookWhile(cursor, (function($$char){
+                  return function ($$char$2) {
+                    console.log("char: " + $$char$2 + ", quote: " + $$char);
+                    console.log($$char$2 !== $$char);
+                    return $$char$2 !== $$char;
                   }
-                  }(lexeme))), (function (c) {
+                  }($$char))), (function (w) {
                   return {
                           TAG: /* String */2,
-                          _0: toWord(c)
+                          _0: w
                         };
                 }));
           continue ;
       case 2 :
-          if (alpha($$char)) {
-            _cursor = commitWith(scanWhile(cursor, alphanumeric), (function (c) {
-                    return fromString(toWord(c));
+          if (alpha($$char$1)) {
+            _cursor = commit(lookWhile(cursor, alphanumeric), fromString);
+            continue ;
+          }
+          if (numeric($$char)) {
+            _cursor = commit(lookWhile(cursor, numeric), (function (w) {
+                    return {
+                            TAG: /* Number */6,
+                            _0: w
+                          };
                   }));
             continue ;
           }
-          if (numeric(lexeme)) {
-            _cursor = commitWith(scanWhile(cursor, numeric), (function (c) {
-                    return fromString(toWord(c));
-                  }));
-            continue ;
-          }
-          _cursor = commitWith(cursor, (function (c) {
-                  return fromString(toWord(c));
-                }));
+          _cursor = commit(cursor, fromString);
           continue ;
       
     }
@@ -392,17 +382,11 @@ function report(line, where, message) {
   
 }
 
-var input = "\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
+var input = "\n  ayy = \"lmao\"\n  jaja = 400\n  state enabled {\n    toggle => disabled\n  }\n\n  initial state disabled {\n    toggle => enabled\n  }\n";
 
-var output = scan(make$1(input));
+console.log(input.substr(9, 1));
 
-console.log("-------------[Tokens]---------------");
-
-console.log(output);
-
-console.log("------------------------------------");
-
-var debug = true;
+var debug = false;
 
 exports.debug = debug;
 exports.Token = Token;
@@ -412,9 +396,8 @@ exports.Cursor = Cursor;
 exports.alpha = alpha;
 exports.alphanumeric = alphanumeric;
 exports.numeric = numeric;
-exports.scanWhile = scanWhile;
+exports.lookWhile = lookWhile;
 exports.scan = scan;
 exports.report = report;
 exports.input = input;
-exports.output = output;
-/* output Not a pure module */
+/*  Not a pure module */
